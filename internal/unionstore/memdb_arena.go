@@ -35,10 +35,13 @@
 package unionstore
 
 import (
+	"context"
 	"encoding/binary"
+	"go.uber.org/zap"
 	"math"
 	"unsafe"
 
+	"github.com/tikv/client-go/v2/internal/logutil"
 	"github.com/tikv/client-go/v2/kv"
 )
 
@@ -74,6 +77,7 @@ func (addr memdbArenaAddr) store(dst []byte) {
 func (addr *memdbArenaAddr) load(src []byte) {
 	addr.idx = endian.Uint32(src)
 	addr.off = endian.Uint32(src[4:])
+	addr.debugCheck()
 }
 
 type memdbArena struct {
@@ -155,6 +159,28 @@ func (a *memdbArenaBlock) reset() {
 	a.length = 0
 }
 
+const BigIdx = 1000
+const BigOff = math.MaxUint32 - 10
+
+func (addr *memdbArenaAddr) debugCheck() {
+	if !addr.isNull() {
+		if addr.idx == math.MaxUint32 || addr.idx > BigIdx {
+			logutil.Logger(context.Background()).Error("addr.idx is max uint32 or too big",
+				zap.Uint32("addr.idx", addr.idx),
+				zap.Stack("stack"))
+			panic("addr.idx is max uint32")
+		}
+		/*
+		if addr.off == math.MaxUint32 || addr.off > BigOff {
+			logutil.Logger(context.Background()).Error("addr.off is max uint32 or too big",
+				zap.Uint32("addr.off", addr.off),
+				zap.Stack("stack"))
+			panic("addr.off is max uint32")
+		}
+		*/
+	}
+}
+
 type memdbCheckpoint struct {
 	blockSize     int
 	blocks        int
@@ -210,6 +236,7 @@ func (a *nodeAllocator) getNode(addr memdbArenaAddr) *memdbNode {
 		return &a.nullNode
 	}
 
+	addr.debugCheck()
 	return (*memdbNode)(unsafe.Pointer(&a.blocks[addr.idx].buf[addr.off]))
 }
 
@@ -220,6 +247,7 @@ func (a *nodeAllocator) allocNode(key []byte) (memdbArenaAddr, *memdbNode) {
 	n.vptr = nullAddr
 	n.klen = uint16(len(key))
 	copy(n.getKey(), key)
+	addr.debugCheck()
 	return addr, n
 }
 
@@ -288,6 +316,7 @@ func (l *memdbVlog) appendValue(nodeAddr memdbArenaAddr, oldValue memdbArenaAddr
 }
 
 func (l *memdbVlog) getValue(addr memdbArenaAddr) []byte {
+	addr.debugCheck()
 	lenOff := addr.off - memdbVlogHdrSize
 	block := l.blocks[addr.idx].buf
 	valueLen := endian.Uint32(block[lenOff:])
@@ -353,6 +382,7 @@ func (l *memdbVlog) inspectKVInLog(db *MemDB, head, tail *memdbCheckpoint, f fun
 	cursor := *tail
 	for !head.isSamePosition(&cursor) {
 		cursorAddr := memdbArenaAddr{idx: uint32(cursor.blocks - 1), off: uint32(cursor.offsetInBlock)}
+		cursorAddr.debugCheck()
 		hdrOff := cursorAddr.off - memdbVlogHdrSize
 		block := l.blocks[cursorAddr.idx].buf
 		var hdr memdbVlogHdr

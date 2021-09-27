@@ -59,7 +59,9 @@ type MemKeyHandle struct {
 }
 
 func (h MemKeyHandle) toAddr() memdbArenaAddr {
-	return memdbArenaAddr{idx: uint32(h.idx), off: h.off}
+	addr := memdbArenaAddr{idx: uint32(h.idx), off: h.off}
+	addr.debugCheck()
+	return addr
 }
 
 // MemDB is rollbackable Red-Black Tree optimized for TiDB's transaction states buffer use scenario.
