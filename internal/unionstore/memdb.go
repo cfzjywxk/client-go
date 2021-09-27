@@ -36,6 +36,7 @@ package unionstore
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"reflect"
 	"sync"
@@ -764,6 +765,10 @@ func (db *MemDB) allocNode(key []byte) memdbNodeAddr {
 	db.size += len(key)
 	db.count++
 	x, xn := db.allocator.allocNode(key)
+	xn.up.debugCheck()
+	xn.left.debugCheck()
+	xn.right.debugCheck()
+	xn.vptr.debugCheck()
 	return memdbNodeAddr{xn, x}
 }
 
@@ -795,6 +800,17 @@ type memdbNode struct {
 	vptr  memdbArenaAddr
 	klen  uint16
 	flags uint8
+}
+
+func (n *memdbNode) string() string {
+	return fmt.Sprintf("a.up=%v a.left=%v a.right=%v a.vptr=%v", n.up, n.left, n.right, n.vptr)
+}
+
+func (n *memdbNode) init() {
+	n.up = nullAddr
+	n.vptr = nullAddr
+	n.left = nullAddr
+	n.right = nullAddr
 }
 
 func (n *memdbNode) isRed() bool {

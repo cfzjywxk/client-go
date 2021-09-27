@@ -167,8 +167,9 @@ func (addr *memdbArenaAddr) debugCheck() {
 		if addr.idx == math.MaxUint32 || addr.idx > BigIdx {
 			logutil.Logger(context.Background()).Error("addr.idx is max uint32 or too big",
 				zap.Uint32("addr.idx", addr.idx),
+				zap.Uint32("addr.off", addr.off),
 				zap.Stack("stack"))
-			panic("addr.idx is max uint32")
+			panic("addr.idx is max uint32 or it's too big")
 		}
 		/*
 		if addr.off == math.MaxUint32 || addr.off > BigOff {
@@ -263,6 +264,7 @@ func (a *nodeAllocator) freeNode(addr memdbArenaAddr) {
 		n.right = badAddr
 		n.up = badAddr
 		n.vptr = badAddr
+		logutil.Logger(context.Background()).Error("[for debug] testMode is on")
 		return
 	}
 	// TODO: reuse freed nodes.
