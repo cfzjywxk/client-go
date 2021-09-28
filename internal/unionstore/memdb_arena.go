@@ -393,7 +393,7 @@ func (l *memdbVlog) inspectKVInLog(db *MemDB, head, tail *memdbCheckpoint, f fun
 
 		// Skip older versions.
 		if node.vptr == cursorAddr {
-			value := block[hdrOff-hdr.valueLen : hdrOff]
+			value := block[hdrOff-hdr.valueLen : hdrOff : hdrOff]
 			f(node.getKey(true), node.getKeyFlags(), value)
 		}
 

@@ -217,7 +217,7 @@ func (i *MemdbIterator) seek(key []byte) {
 	var cmp int
 	for !x.isNull() {
 		y = x
-		cmp = bytes.Compare(key, y.getKey(false))
+		cmp = bytes.Compare(key, y.getKey(true))
 
 		if cmp < 0 {
 			x = y.getLeft(i.db)

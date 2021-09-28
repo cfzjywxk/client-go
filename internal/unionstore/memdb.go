@@ -371,7 +371,7 @@ func (db *MemDB) traverse(key []byte, insert bool) memdbNodeAddr {
 	// walk x down the tree
 	for !x.isNull() && !found {
 		y = x
-		cmp := bytes.Compare(key, x.getKey(false))
+		cmp := bytes.Compare(key, x.getKey(true))
 		if cmp < 0 {
 			x = x.getLeft(db)
 		} else if cmp > 0 {
@@ -391,7 +391,7 @@ func (db *MemDB) traverse(key []byte, insert bool) memdbNodeAddr {
 	if y.isNull() {
 		db.root = z.addr
 	} else {
-		cmp := bytes.Compare(z.getKey(false), y.getKey(false))
+		cmp := bytes.Compare(z.getKey(true), y.getKey(true))
 		if cmp < 0 {
 			y.left = z.addr
 		} else {
