@@ -63,6 +63,28 @@ func (db *MemDB) DeleteKey(key []byte) {
 	db.deleteNode(x)
 }
 
+func TestBasic(t *testing.T) {
+	require := require.New(t)
+
+	const cnt = 10000
+	db := newMemDB()
+	_ = db.Staging()
+	k1 := []byte("tk1")
+	v1 := []byte("v1")
+	k2 := []byte("tk2")
+	v2 := []byte("v2")
+	db.Set(k1, v1)
+	db.Set(k2, v2)
+
+	getV1, err := db.Get(k1)
+	require.Nil(err)
+	require.Equal(getV1, v1)
+
+	getV2, err := db.Get(k2)
+	require.Nil(err)
+	require.Equal(getV2, v2)
+}
+
 func TestGetSet(t *testing.T) {
 	require := require.New(t)
 

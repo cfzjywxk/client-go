@@ -85,7 +85,7 @@ func TestRandom(t *testing.T) {
 }
 
 // The test takes too long under the race detector.
-func TestRandomDerive(t *testing.T) {
+func TestAARandomDerive(t *testing.T) {
 	db := newMemDB()
 	golden := leveldb.New(comparer.DefaultComparer, 4*1024)
 	testRandomDeriveRecur(t, db, golden, 0)

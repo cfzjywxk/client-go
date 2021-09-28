@@ -150,7 +150,7 @@ func (i *MemdbIterator) HasValue() bool {
 
 // Key returns current key.
 func (i *MemdbIterator) Key() []byte {
-	return i.curr.getKey()
+	return i.curr.getKey(true)
 }
 
 // Handle returns MemKeyHandle with the current position.
@@ -217,7 +217,7 @@ func (i *MemdbIterator) seek(key []byte) {
 	var cmp int
 	for !x.isNull() {
 		y = x
-		cmp = bytes.Compare(key, y.getKey())
+		cmp = bytes.Compare(key, y.getKey(false))
 
 		if cmp < 0 {
 			x = y.getLeft(i.db)

@@ -172,12 +172,12 @@ func (addr *memdbArenaAddr) debugCheck() {
 			panic("addr.idx is max uint32 or it's too big")
 		}
 		/*
-		if addr.off == math.MaxUint32 || addr.off > BigOff {
-			logutil.Logger(context.Background()).Error("addr.off is max uint32 or too big",
-				zap.Uint32("addr.off", addr.off),
-				zap.Stack("stack"))
-			panic("addr.off is max uint32")
-		}
+			if addr.off == math.MaxUint32 || addr.off > BigOff {
+				logutil.Logger(context.Background()).Error("addr.off is max uint32 or too big",
+					zap.Uint32("addr.off", addr.off),
+					zap.Stack("stack"))
+				panic("addr.off is max uint32")
+			}
 		*/
 	}
 }
@@ -247,7 +247,7 @@ func (a *nodeAllocator) allocNode(key []byte) (memdbArenaAddr, *memdbNode) {
 	n := (*memdbNode)(unsafe.Pointer(&mem[0]))
 	n.vptr = nullAddr
 	n.klen = uint16(len(key))
-	copy(n.getKey(), key)
+	copy(n.getKey(false), key)
 	addr.debugCheck()
 	return addr, n
 }
@@ -394,7 +394,7 @@ func (l *memdbVlog) inspectKVInLog(db *MemDB, head, tail *memdbCheckpoint, f fun
 		// Skip older versions.
 		if node.vptr == cursorAddr {
 			value := block[hdrOff-hdr.valueLen : hdrOff]
-			f(node.getKey(), node.getKeyFlags(), value)
+			f(node.getKey(true), node.getKeyFlags(), value)
 		}
 
 		l.moveBackCursor(&cursor, &hdr)

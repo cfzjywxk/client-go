@@ -266,7 +266,7 @@ func (db *MemDB) DeleteWithFlags(key []byte, ops ...kv.FlagsOp) error {
 // GetKeyByHandle returns key by handle.
 func (db *MemDB) GetKeyByHandle(handle MemKeyHandle) []byte {
 	x := db.getNode(handle.toAddr())
-	return x.getKey()
+	return x.getKey(true)
 }
 
 // GetValueByHandle returns value by handle.
@@ -371,7 +371,7 @@ func (db *MemDB) traverse(key []byte, insert bool) memdbNodeAddr {
 	// walk x down the tree
 	for !x.isNull() && !found {
 		y = x
-		cmp := bytes.Compare(key, x.getKey())
+		cmp := bytes.Compare(key, x.getKey(false))
 		if cmp < 0 {
 			x = x.getLeft(db)
 		} else if cmp > 0 {
@@ -391,7 +391,7 @@ func (db *MemDB) traverse(key []byte, insert bool) memdbNodeAddr {
 	if y.isNull() {
 		db.root = z.addr
 	} else {
-		cmp := bytes.Compare(z.getKey(), y.getKey())
+		cmp := bytes.Compare(z.getKey(false), y.getKey(false))
 		if cmp < 0 {
 			y.left = z.addr
 		} else {
@@ -829,13 +829,18 @@ func (n *memdbNode) setBlack() {
 	n.flags &= ^nodeColorBit
 }
 
-func (n *memdbNode) getKey() []byte {
+func (n *memdbNode) getKey(memCopy bool) []byte {
 	var ret []byte
 	hdr := (*reflect.SliceHeader)(unsafe.Pointer(&ret))
 	hdr.Data = uintptr(unsafe.Pointer(&n.flags)) + 1
 	hdr.Len = int(n.klen)
 	hdr.Cap = int(n.klen)
-	return ret
+	if !memCopy {
+		return ret
+	}
+	res := make([]byte, len(ret))
+	copy(res, ret)
+	return res
 }
 
 const (
