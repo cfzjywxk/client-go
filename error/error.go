@@ -90,6 +90,8 @@ var (
 	ErrUnknown = errors.New("unknow")
 	// ErrResultUndetermined is the error when execution result is unknown.
 	ErrResultUndetermined = errors.New("execution result undetermined")
+	// ErrRCReadCheckTSFailed is the error if the ts used by rc read does not satisfy current read.
+	ErrRCReadCheckTSFailed = errors.New("read consistency read ts check failure")
 )
 
 // MismatchClusterID represents the message that the cluster ID of the PD client does not match the PD.

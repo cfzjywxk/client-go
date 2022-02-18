@@ -78,6 +78,8 @@ const (
 	SI IsoLevel = IsoLevel(kvrpcpb.IsolationLevel_SI)
 	// RC stands for 'read committed'.
 	RC IsoLevel = IsoLevel(kvrpcpb.IsolationLevel_RC)
+	// RCCheckTS stands for 'read consistency' with ts check
+	RCCheckTS IsoLevel = IsoLevel(kvrpcpb.IsolationLevel_RCCheckTS)
 )
 
 // ToPB converts isolation level to wire type.
@@ -602,6 +604,9 @@ func (s *KVSnapshot) get(ctx context.Context, bo *retry.Backoffer, k []byte) ([]
 		}
 		val := cmdGetResp.GetValue()
 		if keyErr := cmdGetResp.GetError(); keyErr != nil {
+			if keyErr.Conflict != nil {
+				return nil, tikverr.ExtractKeyErr(keyErr)
+			}
 			lock, err := txnlock.ExtractLockFromKeyErr(keyErr)
 			if err != nil {
 				return nil, err

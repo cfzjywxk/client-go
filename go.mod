@@ -43,3 +43,5 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	honnef.co/go/tools v0.2.0 // indirect
 )
+
+replace github.com/pingcap/kvproto => github.com/cfzjywxk/kvproto v0.0.0-20220218013939-d5c7bd99d31a
