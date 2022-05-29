@@ -914,6 +914,15 @@ func (c *twoPhaseCommitter) doActionOnGroupMutations(bo *retry.Backoffer, action
 	if firstIsPrimary &&
 		((actionIsCommit && !c.isAsyncCommit()) || actionIsCleanup || actionIsPessimisticLock) {
 		// primary should be committed(not async commit)/cleanup/pessimistically locked first
+		// Try to debug 34875.
+		if c.sessionID > 0 {
+			logutil.Logger(bo.GetCtx()).Info("[DEBUG 34875] Try to process the primary key of a 2pc transaction",
+				zap.Uint64("start_ts", c.startTS), zap.Uint64("commit_ts", c.commitTS),
+				zap.String("primary key", hex.EncodeToString(c.primaryKey)),
+				zap.Bool("actionIsCommit", actionIsCommit),
+				zap.Bool("actionIsCleanup", actionIsCleanup),
+				zap.Bool("actionIsPessimisticLock", actionIsPessimisticLock))
+		}
 		err = c.doActionOnBatches(bo, action, batchBuilder.primaryBatch())
 		if err != nil {
 			return err
@@ -1568,7 +1577,7 @@ func (c *twoPhaseCommitter) execute(ctx context.Context) (err error) {
 	if c.isAsyncCommit() {
 		// For async commit protocol, the commit is considered success here.
 		c.txn.commitTS = c.commitTS
-		logutil.Logger(ctx).Debug("2PC will use async commit protocol to commit this txn",
+		logutil.Logger(ctx).Info("2PC will use async commit protocol to commit this txn",
 			zap.Uint64("startTS", c.startTS), zap.Uint64("commitTS", c.commitTS),
 			zap.Uint64("sessionID", c.sessionID))
 		if c.store.IsClose() {

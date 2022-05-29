@@ -281,6 +281,8 @@ func (lr *LockResolver) BatchResolveLocks(bo *retry.Backoffer, locks []*Lock, lo
 			Txn:    txnID,
 			Status: status,
 		})
+		logutil.Logger(bo.GetCtx()).Info("[DEBUG 34875] batch resolve lock",
+			zap.Uint64("txnID", txnID), zap.Uint64("status", status))
 	}
 
 	req := tikvrpc.NewRequest(tikvrpc.CmdResolveLock, &kvrpcpb.ResolveLockRequest{TxnInfos: listTxnInfos})
@@ -397,6 +399,11 @@ func (lr *LockResolver) resolveLocks(bo *retry.Backoffer, callerStartTS uint64, 
 		if err != nil {
 			return TxnStatus{}, err
 		}
+		logutil.Logger(bo.GetCtx()).Info("[DEBUG 34875] check txn status results doing resolveLocks",
+			zap.Uint64("callerStartTS", callerStartTS), zap.Bool("forceSyncCommit", forceSyncCommit),
+			zap.Stringer("lock", l), zap.Bool("forRead", forRead), zap.Bool("lite", lite),
+			zap.Uint64("status.ttl", status.ttl), zap.Uint64("status.commit_ts", status.commitTS),
+			zap.Stringer("action", status.action), zap.Stringer("primary lock", status.primaryLock))
 		if status.ttl != 0 {
 			return status, nil
 		}
@@ -412,6 +419,11 @@ func (lr *LockResolver) resolveLocks(bo *retry.Backoffer, callerStartTS uint64, 
 			// resolveAsyncCommitLock will resolve all locks of the transaction, so we needn't resolve
 			// it again if it has been resolved once.
 			if exists {
+				logutil.Logger(bo.GetCtx()).Info("[DEBUG 34875] check txn status results doing resolveLocks, return exists resolving status for async commit",
+					zap.Uint64("callerStartTS", callerStartTS), zap.Bool("forceSyncCommit", forceSyncCommit),
+					zap.Stringer("lock", l), zap.Bool("forRead", forRead), zap.Bool("lite", lite),
+					zap.Uint64("status.ttl", status.ttl), zap.Uint64("status.commit_ts", status.commitTS),
+					zap.Stringer("action", status.action), zap.Stringer("primary lock", status.primaryLock))
 				return status, nil
 			}
 			// status of async-commit transaction is determined by resolveAsyncCommitLock.
@@ -419,12 +431,22 @@ func (lr *LockResolver) resolveLocks(bo *retry.Backoffer, callerStartTS uint64, 
 			if _, ok := errors.Cause(err).(*nonAsyncCommitLock); ok {
 				status, err = resolve(l, true)
 			}
+			logutil.Logger(bo.GetCtx()).Info("[DEBUG 34875] check txn status results doing resolveLocks, resolving async commit locks finished",
+				zap.Uint64("callerStartTS", callerStartTS), zap.Bool("forceSyncCommit", forceSyncCommit),
+				zap.Stringer("lock", l), zap.Bool("forRead", forRead), zap.Bool("lite", lite),
+				zap.Uint64("status.ttl", status.ttl), zap.Uint64("status.commit_ts", status.commitTS),
+				zap.Stringer("action", status.action), zap.Stringer("primary lock", status.primaryLock))
 			return status, err
 		}
 		if l.LockType == kvrpcpb.Op_PessimisticLock {
 			// pessimistic locks don't block read so it needn't be async.
 			err = lr.resolvePessimisticLock(bo, l)
 		} else {
+			logutil.Logger(bo.GetCtx()).Info("[DEBUG 34875] check txn status results doing resolveLocks, resolving 2pc locks",
+				zap.Uint64("callerStartTS", callerStartTS), zap.Bool("forceSyncCommit", forceSyncCommit),
+				zap.Stringer("lock", l), zap.Bool("forRead", forRead), zap.Bool("lite", lite),
+				zap.Uint64("status.ttl", status.ttl), zap.Uint64("status.commit_ts", status.commitTS),
+				zap.Stringer("action", status.action), zap.Stringer("primary lock", status.primaryLock))
 			if forRead {
 				asyncBo := retry.NewBackoffer(lr.asyncResolveCtx, asyncResolveLockMaxBackoff)
 				go func() {
@@ -450,6 +472,11 @@ func (lr *LockResolver) resolveLocks(bo *retry.Backoffer, callerStartTS uint64, 
 			msBeforeTxnExpired.update(0)
 			return msBeforeTxnExpired.value(), nil, nil, err
 		}
+		logutil.Logger(bo.GetCtx()).Info("[DEBUG 34875] resolve result for lock",
+			zap.Uint64("callerStartTS", callerStartTS),
+			zap.Stringer("lock", l), zap.Bool("forRead", forRead), zap.Bool("lite", lite),
+			zap.Uint64("status.ttl", status.ttl), zap.Uint64("status.commit_ts", status.commitTS),
+			zap.Stringer("action", status.action), zap.Stringer("primary lock", status.primaryLock))
 		if !forRead {
 			if status.ttl != 0 {
 				metrics.LockResolverCountWithNotExpired.Inc()
@@ -464,11 +491,13 @@ func (lr *LockResolver) resolveLocks(bo *retry.Backoffer, callerStartTS uint64, 
 				canIgnore = make([]uint64, 0, len(locks))
 			}
 			canIgnore = append(canIgnore, l.TxnID)
+			logutil.Logger(bo.GetCtx()).Info("[DEBUG 34875] txn could be ignored", zap.Uint64("TxnID", l.TxnID))
 		} else if status.IsCommitted() && status.CommitTS() <= callerStartTS {
 			if canAccess == nil {
 				canAccess = make([]uint64, 0, len(locks))
 			}
 			canAccess = append(canAccess, l.TxnID)
+			logutil.Logger(bo.GetCtx()).Info("[DEBUG 34875] txn could be accessed", zap.Uint64("TxnID", l.TxnID))
 		} else {
 			metrics.LockResolverCountWithNotExpired.Inc()
 			msBeforeLockExpired := lr.store.GetOracle().UntilExpired(l.TxnID, status.ttl, &oracle.Option{TxnScope: oracle.GlobalTxnScope})
@@ -624,7 +653,17 @@ func (e txnNotFoundErr) Error() string {
 // When rollbackIfNotExist is false, the caller should be careful with the txnNotFoundErr error.
 func (lr *LockResolver) getTxnStatus(bo *retry.Backoffer, txnID uint64, primary []byte,
 	callerStartTS, currentTS uint64, rollbackIfNotExist bool, forceSyncCommit bool, lockInfo *Lock) (TxnStatus, error) {
+	var status TxnStatus
+	defer func() {
+		logutil.Logger(bo.GetCtx()).Info("[DEBUG 34875] get txn status using check_txn_status",
+			zap.Uint64("callerStartTS", callerStartTS), zap.Uint64("currentTS", currentTS),
+			zap.Bool("rollbackIfNotExist", rollbackIfNotExist), zap.Bool("forceSyncCommit", forceSyncCommit),
+			zap.Stringer("lock", lockInfo),
+			zap.Uint64("status.ttl", status.ttl), zap.Uint64("status.commit_ts", status.commitTS),
+			zap.Stringer("action", status.action), zap.Stringer("primary lock", status.primaryLock))
+	}()
 	if s, ok := lr.getResolved(txnID); ok {
+		status = s
 		return s, nil
 	}
 
@@ -639,7 +678,6 @@ func (lr *LockResolver) getTxnStatus(bo *retry.Backoffer, txnID uint64, primary 
 	// 2.2 Txn Rollbacked -- rollback itself, rollback by others, GC tomb etc.
 	// 2.3 No lock -- pessimistic lock rollback, concurrence prewrite.
 
-	var status TxnStatus
 	resolvingPessimisticLock := lockInfo != nil && lockInfo.LockType == kvrpcpb.Op_PessimisticLock
 	req := tikvrpc.NewRequest(tikvrpc.CmdCheckTxnStatus, &kvrpcpb.CheckTxnStatusRequest{
 		PrimaryKey:               primary,
@@ -995,6 +1033,10 @@ func (lr *LockResolver) resolveLock(bo *retry.Backoffer, l *Lock, status TxnStat
 	resolveLite := lite || l.TxnSize < lr.resolveLockLiteThreshold
 	// The lock has been resolved by getTxnStatusFromLock.
 	if resolveLite && bytes.Equal(l.Key, l.Primary) {
+		logutil.Logger(bo.GetCtx()).Info("[DEBUG 34875] resolveLock is skipped, the lock has been resolved by getTxnStatusFromLock",
+			zap.String("lock", l.String()), zap.Bool("lite", lite),
+			zap.Uint64("status.ttl", status.ttl), zap.Uint64("status.commit_ts", status.commitTS),
+			zap.Stringer("action", status.action), zap.Stringer("primary lock", status.primaryLock))
 		return nil
 	}
 	for {
@@ -1003,6 +1045,10 @@ func (lr *LockResolver) resolveLock(bo *retry.Backoffer, l *Lock, status TxnStat
 			return err
 		}
 		if _, ok := cleanRegions[loc.Region]; ok {
+			logutil.Logger(bo.GetCtx()).Info("[DEBUG 34875] resolveLock is skipped, this region is stored in the resolved region",
+				zap.String("lock", l.String()), zap.Bool("lite", lite),
+				zap.Uint64("status.ttl", status.ttl), zap.Uint64("status.commit_ts", status.commitTS),
+				zap.Stringer("action", status.action), zap.Stringer("primary lock", status.primaryLock))
 			return nil
 		}
 		lreq := &kvrpcpb.ResolveLockRequest{
@@ -1010,8 +1056,13 @@ func (lr *LockResolver) resolveLock(bo *retry.Backoffer, l *Lock, status TxnStat
 		}
 		if status.IsCommitted() {
 			lreq.CommitVersion = status.CommitTS()
+			logutil.BgLogger().Info("[DEBUG 34875] resolveLock commit", zap.String("lock", l.String()), zap.Bool("lite", lite),
+				zap.Uint64("status.ttl", status.ttl), zap.Uint64("status.commit_ts", status.commitTS),
+				zap.Stringer("action", status.action), zap.Stringer("primary lock", status.primaryLock))
 		} else {
-			logutil.BgLogger().Info("resolveLock rollback", zap.String("lock", l.String()))
+			logutil.BgLogger().Info("resolveLock rollback", zap.String("lock", l.String()), zap.Bool("lite", lite),
+				zap.Uint64("status.ttl", status.ttl), zap.Uint64("status.commit_ts", status.commitTS),
+				zap.Stringer("action", status.action), zap.Stringer("primary lock", status.primaryLock))
 		}
 
 		if resolveLite {

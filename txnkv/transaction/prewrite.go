@@ -340,7 +340,7 @@ func (action actionPrewrite) handleSingleBatch(c *twoPhaseCommitter, bo *retry.B
 						return nil
 					}
 					logutil.Logger(bo.GetCtx()).Warn("async commit cannot proceed since the returned minCommitTS is zero, "+
-						"fallback to normal path", zap.Uint64("startTS", c.startTS))
+						"fallback to normal path", zap.Uint64("startTS", c.startTS), zap.Bool("retry", action.retry))
 					c.setAsyncCommit(false)
 				} else {
 					c.mu.Lock()
