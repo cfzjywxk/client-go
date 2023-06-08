@@ -362,7 +362,7 @@ func (a *batchConn) getClientAndSend() {
 		}
 	}
 	if cli == nil {
-		logutil.BgLogger().Warn("no available connections", zap.String("target", target))
+		logutil.BgLogger().Warn("no available connections", zap.String("target", target), zap.Bool("idle", a.isIdle()))
 		metrics.TiKVNoAvailableConnectionCounter.Inc()
 
 		// Please ensure the error is handled in region cache correctly.
@@ -582,6 +582,9 @@ func (c *batchCommandsClient) recreateStreamingClientOnce(streamClient *batchCom
 		"batchRecvLoop re-create streaming fail",
 		zap.String("target", c.target),
 		zap.String("forwardedHost", streamClient.forwardedHost),
+		zap.String("state", c.conn.GetState().String()),
+		zap.Bool("isStopped", c.isStopped()),
+		zap.Duration("dialTimeout", c.dialTimeout),
 		zap.Error(err),
 	)
 	return err
@@ -814,6 +817,7 @@ func (c *RPCClient) recycleIdleConnArray() {
 
 	for _, addr := range addrs {
 		c.CloseAddr(addr)
+		logutil.BgLogger().Info("recycle idle conn", zap.String("target", addr))
 	}
 
 	metrics.TiKVBatchClientRecycle.Observe(time.Since(start).Seconds())

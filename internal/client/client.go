@@ -659,7 +659,7 @@ func (c *RPCClient) CloseAddr(addr string) error {
 	conn, ok := c.conns[addr]
 	if ok {
 		delete(c.conns, addr)
-		logutil.BgLogger().Debug("close connection", zap.String("target", addr))
+		logutil.BgLogger().Info("close connection", zap.String("target", addr))
 	}
 	c.Unlock()
 
