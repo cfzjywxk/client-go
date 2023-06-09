@@ -118,7 +118,7 @@ type CoprocessorCache struct {
 // DefaultTiKVClient returns default config for TiKVClient.
 func DefaultTiKVClient() TiKVClient {
 	return TiKVClient{
-		GrpcConnectionCount:  4,
+		GrpcConnectionCount:  1,
 		GrpcKeepAliveTime:    10,
 		GrpcKeepAliveTimeout: 3,
 		GrpcCompressionType:  "none",

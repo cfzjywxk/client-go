@@ -378,12 +378,6 @@ func (a *batchConn) getClientAndSend() {
 		}
 	})
 	if req != nil {
-		logutil.BgLogger().Info("[for debug] lock a stream for send",
-			zap.String("target", cli.target),
-			zap.Bool("idle", a.isIdle()),
-			zap.Uint32("a.index", a.index),
-			zap.Int32("closed", cli.closed),
-			zap.Uint64("epoch", cli.epoch))
 		cli.send("", req)
 	}
 	for forwardedHost, req := range forwardingReqs {
@@ -510,6 +504,7 @@ func (c *batchCommandsClient) send(forwardedHost string, req *tikvpb.BatchComman
 	if err != nil {
 		logutil.BgLogger().Warn(
 			"init create streaming fail",
+			zap.Uint64("epoch", c.epoch),
 			zap.String("target", c.target),
 			zap.String("forwardedHost", forwardedHost),
 			zap.Error(err),
@@ -525,6 +520,7 @@ func (c *batchCommandsClient) send(forwardedHost string, req *tikvpb.BatchComman
 	if err := client.Send(req); err != nil {
 		logutil.BgLogger().Info(
 			"sending batch commands meets error",
+			zap.Uint64("epoch", c.epoch),
 			zap.String("target", c.target),
 			zap.String("forwardedHost", forwardedHost),
 			zap.Uint64s("requestIDs", req.RequestIds),
