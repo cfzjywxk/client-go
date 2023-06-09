@@ -378,6 +378,12 @@ func (a *batchConn) getClientAndSend() {
 		}
 	})
 	if req != nil {
+		logutil.BgLogger().Info("[for debug] lock a stream for send",
+			zap.String("target", cli.target),
+			zap.Bool("idle", a.isIdle()),
+			zap.Uint32("a.index", a.index),
+			zap.Int32("closed", cli.closed),
+			zap.Uint64("epoch", cli.epoch))
 		cli.send("", req)
 	}
 	for forwardedHost, req := range forwardingReqs {
@@ -558,6 +564,11 @@ func (c *batchCommandsClient) waitConnReady() (err error) {
 		if !c.conn.WaitForStateChange(dialCtx, s) {
 			cancel()
 			err = dialCtx.Err()
+			logutil.BgLogger().Info("[for debug] waitConnReady returns error",
+				zap.String("target", c.conn.Target()),
+				zap.Stringer("status", c.conn.GetState()),
+				zap.Duration("dial timeout", c.dialTimeout),
+				zap.Error(err))
 			return
 		}
 	}
@@ -606,15 +617,16 @@ func (c *batchCommandsClient) batchRecvLoop(cfg config.TiKVClient, tikvTransport
 	for {
 		resp, err := streamClient.recv()
 		if err != nil {
-			if c.isStopped() {
-				return
-			}
-			logutil.BgLogger().Debug(
+			logutil.BgLogger().Info(
 				"batchRecvLoop fails when receiving, needs to reconnect",
+				zap.Bool("isStopped", c.isStopped()),
 				zap.String("target", c.target),
 				zap.String("forwardedHost", streamClient.forwardedHost),
 				zap.Error(err),
 			)
+			if c.isStopped() {
+				return
+			}
 
 			now := time.Now()
 			if stopped := c.recreateStreamingClient(err, streamClient, &epoch); stopped {
@@ -684,21 +696,40 @@ func (c *batchCommandsClient) recreateStreamingClient(err error, streamClient *b
 				"batchRecvLoop re-create streaming fail",
 				zap.String("target", c.target),
 				zap.String("forwardedHost", streamClient.forwardedHost),
+				zap.Bool("isStopped", c.isStopped()),
 				zap.Error(err),
 			)
+		} else {
+			logutil.BgLogger().Info(
+				"batchRecvLoop re-create streaming succeeds",
+				zap.String("target", c.target),
+				zap.Bool("isStopped", c.isStopped()),
+				zap.String("forwardedHost", streamClient.forwardedHost))
 		}
 		return c.isStopped()
 	}
 	*epoch++
+	logutil.BgLogger().Info("[for debug] recreateStreamingClient tries to wait",
+		zap.Uint64("epoch", c.epoch),
+		zap.String("target", c.target),
+		zap.Stringer("state", c.conn.GetState()))
 
 	c.failPendingRequests(err) // fail all pending requests.
 	b := retry.NewBackofferWithVars(context.Background(), math.MaxInt32, nil)
 	for { // try to re-create the streaming in the loop.
 		if c.isStopped() {
+			logutil.BgLogger().Info("[for debug] recreateStreamingClient return because it's stopped",
+				zap.Uint64("epoch", c.epoch),
+				zap.String("target", c.target),
+				zap.Stringer("state", c.conn.GetState()))
 			return true
 		}
 		err1 := c.recreateStreamingClientOnce(streamClient)
 		if err1 == nil {
+			logutil.BgLogger().Info("[for debug] recreateStreamingClient succeeds",
+				zap.Uint64("epoch", c.epoch),
+				zap.String("target", c.target),
+				zap.Stringer("state", c.conn.GetState()))
 			break
 		}
 
@@ -726,7 +757,11 @@ func (c *batchCommandsClient) initBatchClient(forwardedHost string) error {
 		return nil
 	}
 
+	logutil.BgLogger().Info("[for debug] initBatchClient waitConnReady", zap.Stringer("status", c.conn.GetState()))
 	if err := c.waitConnReady(); err != nil {
+		logutil.BgLogger().Info("[for debug] initBatchClient waitConnReady error",
+			zap.Stringer("status", c.conn.GetState()),
+			zap.Error(err))
 		return err
 	}
 
@@ -745,8 +780,13 @@ func (c *batchCommandsClient) initBatchClient(forwardedHost string) error {
 
 func (a *batchConn) Close() {
 	// Close all batchRecvLoop.
-	for _, c := range a.batchCommandsClients {
+	for i, c := range a.batchCommandsClients {
 		// After connections are closed, `batchRecvLoop`s will check the flag.
+		logutil.BgLogger().Info("[for debug] batchConn.Close",
+			zap.Int("index", i),
+			zap.Uint64("epoch", c.epoch),
+			zap.Stringer("state", c.conn.GetState()),
+			zap.String("target", c.conn.Target()))
 		atomic.StoreInt32(&c.closed, 1)
 	}
 	// Don't close(batchCommandsCh) because when Close() is called, someone maybe
@@ -816,8 +856,8 @@ func (c *RPCClient) recycleIdleConnArray() {
 	c.RUnlock()
 
 	for _, addr := range addrs {
-		c.CloseAddr(addr)
 		logutil.BgLogger().Info("recycle idle conn", zap.String("target", addr))
+		c.CloseAddr(addr)
 	}
 
 	metrics.TiKVBatchClientRecycle.Observe(time.Since(start).Seconds())
