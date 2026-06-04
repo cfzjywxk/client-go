@@ -160,7 +160,7 @@ jobs:
         uses: shrink/actions-docker-extract@v1
         id: extract-tikv
         with:
-          image: gcr.io/pingcap-public/dbaas/tikv:dedicated-next-gen
+          image: gcr.io/pingcap-public/dbaas/tikv:v8.5.5-shared-locks-9928-dev
           path: /tikv-server
 
       - name: Run MinIO, PD & Next-Gen TiKV

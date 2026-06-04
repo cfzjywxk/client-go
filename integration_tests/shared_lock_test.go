@@ -37,10 +37,6 @@ func TestSharedLock(t *testing.T) {
 		t.Skip("skipping TestSharedLock because with-tikv is not enabled")
 		return
 	}
-	if config.NextGen {
-		t.Skip("skipping TestSharedLock because next-gen doesn't support shared lock yet")
-		return
-	}
 	suite.Run(t, new(testSharedLockSuite))
 }
 
@@ -465,6 +461,10 @@ func (s *testSharedLockSuite) TestPrewriteResolveExpiredSharedLock() {
 }
 
 func (s *testSharedLockSuite) TestForceLockRetryOnSharedLock() {
+	if config.NextGen {
+		s.T().Skip("NextGen cloud-engine TiKV does not support ForceLock")
+	}
+
 	pk1 := []byte("TestForceLockRetryOnSharedLock_pk1")
 	pk2 := []byte("TestForceLockRetryOnSharedLock_pk2")
 	key := []byte("TestForceLockRetryOnSharedLock_key")
